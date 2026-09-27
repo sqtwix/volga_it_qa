@@ -15,14 +15,20 @@ class CalendarPage(BasePage):
     SUCCESS_HEADER = (By.CSS_SELECTOR, "h4[id^='contact-form-success-header']")
     ERROR_CONTAINER = (By.ID, "g1065-1-selectorenteradate-text-error")
     ERROR_MESSAGE = (By.ID, "g1065-1-selectorenteradate-text-error-message")
-    DATEPICKER_NEXT_MONTH = (By.CSS_SELECTOR, "#ui-datepicker-div .ui-datepicker-next")
-    DATEPICKER_PREV_MONTH = (By.CSS_SELECTOR, "#ui-datepicker-div .ui-datepicker-prev")
+    DATEPICKER_POPUP = (By.CSS_SELECTOR, ".dp, .dp-cal")
+    DATEPICKER_NEXT_MONTH = (By.CSS_SELECTOR, ".dp-next, button.dp-next")
+    DATEPICKER_PREV_MONTH = (By.CSS_SELECTOR, ".dp-prev, button.dp-prev")
+
+    DAY_IN_PICKER_XPATH = (
+        "//div[contains(@class, 'dp')]//button[contains(@class, 'dp-day') "
+        "and not(contains(@class, 'dp-edge-day')) and normalize-space()='{day}']"
+    )
 
     # Методы взаимодействия с элементами ввода данных
 
     def open_page(self):
         with allure.step("Открытие страницы календаря"):
-            self.open(urls.CALENDAR)
+            self.open(urls.CALENDAR_URL)
 
     def clear_date_input(self, element: WebElement | None = None):
         with allure.step("Очистка поля ввода даты"):
@@ -44,13 +50,11 @@ class CalendarPage(BasePage):
     def open_picker(self):
         with allure.step("Открытие датапикера"):
             self.click(self.DATE_INPUT)
+            self.find_element(self.DATEPICKER_POPUP)
 
     def select_day_in_picker(self, day: int):
         with allure.step(f"Выбор дня {day} в активном календаре"):
-            day_locator = (
-                By.XPATH,
-                f"//div[@id='ui-datepicker-div']//td[not(contains(@class, 'ui-datepicker-other-month'))]//a[text()='{day}']"
-            )
+            day_locator = (By.XPATH, self.DAY_IN_PICKER_XPATH.format(day=day))
             self.click(day_locator)
 
     def click_next_month_in_picker(self):
@@ -67,21 +71,26 @@ class CalendarPage(BasePage):
 
     # Методы взаимодействия с элементами получения результата
 
-    def get_success_message(self) -> str:
+    def get_success_message(self, timeout: float = 10.0) -> str:
         with allure.step("Получение сообщения об успешной отправке формы"):
-            return self.get_text(self.SUCCESS_HEADER)
+            try:
+                return self.find_element(self.SUCCESS_HEADER, timeout=timeout).text
+            except (TimeoutException, NoSuchElementException):
+                return ""
+
+    def get_error_message(self, timeout: float = 1.0) -> str:
+        with allure.step("Получение текста ошибки валидации"):
+            try:
+                element = self.find_element(self.ERROR_MESSAGE, timeout=timeout)
+                return element.text
+            except (TimeoutException, NoSuchElementException):
+                return ""
 
     def is_error_displayed(self) -> bool:
         with allure.step("Проверка наличия сообщения об ошибке"):
             try:
-                error_element = self.find_element(self.ERROR_CONTAINER, timeout=3.0)
-                return "has-errors" in (error_element.get_attribute("class") or "") or bool(self.get_error_message())
+                error_element = self.find_element(self.ERROR_CONTAINER, timeout=1.5)
+                has_class = "has-errors" in (error_element.get_attribute("class") or "")
+                return has_class or bool(self.get_error_message(timeout=0.5))
             except (TimeoutException, NoSuchElementException):
                 return False
-
-    def get_error_message(self) -> str:
-        with allure.step("Получение текста ошибки валидации"):
-            try:
-                return self.get_text(self.ERROR_MESSAGE)
-            except (TimeoutException, NoSuchElementException):
-                return ""
