@@ -29,10 +29,22 @@ class ModalsPage(BasePage):
     FORM_SUCCESS_HEADER = (By.CSS_SELECTOR, "#popmake-674 h4[id^='contact-form-success-header']")
     FORM_NAME_ERROR = (By.ID, "g1051-name-text-error")
     FORM_EMAIL_ERROR = (By.ID, "g1051-email-email-error")
+    FORM_SUCCESS_SUMMARY = (By.CSS_SELECTOR, "#popmake-674 .jetpack_forms_contact-form-success-summary")
+
+    FORM_SUCCESS_CONTAINER = (By.CSS_SELECTOR, "#popmake-674 div[id^='contact-form-success']")
+    FORM_BACK_LINK = (By.CSS_SELECTOR,
+                      "#popmake-674 a.go-back-message, #popmake-674 a[data-wp-on--click='actions.goBack']")
+    FORM_BACK_LINK = (By.CSS_SELECTOR,
+                      "#popmake-674 a.link[data-wp-on--click='actions.goBack'], #popmake-674 .go-back-message a")
+
+    SIMPLE_MODAL_TEXT = (By.CSS_SELECTOR, "#popmake-1318 .pum-content p")
 
     def open_page(self):
         with allure.step("Открытие страницы модальных окон"):
-            self.open(urls.MODAL_URL)
+            try:
+                self.open(urls.MODAL_URL)
+            except TimeoutException:
+                self.driver.execute_script("window.stop();")
 
     def clear_input(self, element):
         with allure.step("Очистка поля ввода"):
@@ -59,16 +71,24 @@ class ModalsPage(BasePage):
             except (TimeoutException, NoSuchElementException):
                 return False
 
-    def is_simple_modal_closed(self):
-        with allure.step("Проверка закрытия Simple Modal"):
+    def is_simple_modal_closed(self) -> bool:
+        with allure.step("Проверка полного закрытия Simple Modal (включая оверлей)"):
             try:
-                return self.is_invisible(self.SIMPLE_MODAL_CONTAINER, timeout=3.0)
+                return self.is_invisible(self.SIMPLE_MODAL_OVERLAY, timeout=3.0)
             except TimeoutException:
                 return False
 
     def get_simple_modal_title(self) -> str:
         with allure.step("Получение заголовка Simple Modal"):
             return self.get_text(self.SIMPLE_MODAL_TITLE)
+
+    def get_simple_modal_text(self) -> str:
+        with allure.step("Получение основного текста из Simple Modal"):
+            try:
+                raw_text = self.find_element(self.SIMPLE_MODAL_TEXT, timeout=3.0).text.strip()
+                return raw_text.replace("’", "'")
+            except (TimeoutException, NoSuchElementException):
+                return ""
 
     # Методы взаимодействия с Form Modal
 
@@ -91,13 +111,6 @@ class ModalsPage(BasePage):
                 element = self.find_element(self.FORM_MODAL_CONTAINER, timeout=2.0)
                 return element.is_displayed()
             except (TimeoutException, NoSuchElementException):
-                return False
-
-    def is_form_modal_closed(self):
-        with allure.step("Проверка закрытия Form Modal"):
-            try:
-                return self.is_invisible(self.FORM_MODAL_CONTAINER, timeout=3.0)
-            except TimeoutException:
                 return False
 
     def get_form_modal_title(self) -> str:
@@ -136,6 +149,17 @@ class ModalsPage(BasePage):
             except (TimeoutException, NoSuchElementException):
                 return ""
 
+    def get_form_submission_details(self, timeout: float | None = None) -> str:
+        with allure.step("Получение полного текста сводки об отправке формы"):
+            try:
+                self.find_element(self.FORM_SUCCESS_SUMMARY, timeout=timeout)
+                return self.find_element(self.FORM_SUCCESS_CONTAINER, timeout=timeout).text
+            except (TimeoutException, NoSuchElementException):
+                try:
+                    return self.find_element(self.FORM_SUCCESS_CONTAINER, timeout=2.0).text
+                except (TimeoutException, NoSuchElementException):
+                    return ""
+
     def is_name_error_displayed(self) -> bool:
         with allure.step("Проверка ошибки валидации поля Name"):
             try:
@@ -150,4 +174,26 @@ class ModalsPage(BasePage):
                 element = self.find_element(self.FORM_EMAIL_ERROR, timeout=1.5)
                 return "has-errors" in (element.get_attribute("class") or "") or bool(element.text.strip())
             except (TimeoutException, NoSuchElementException):
+                return False
+
+    def click_back_to_form(self):
+        with allure.step("Нажать на ссылку '← Back' для возврата к полям формы"):
+            self.click(self.FORM_BACK_LINK)
+
+    def click_outside_modal(self):
+        with allure.step("Кликнуть по фоновому оверлею за пределами окна"):
+            self.click(self.FORM_MODAL_OVERLAY)
+
+    def is_form_inputs_visible(self) -> bool:
+        with allure.step("Проверить отображение полей ввода формы"):
+            try:
+                return self.find_element(self.FORM_NAME_INPUT, timeout=2.0).is_displayed()
+            except (TimeoutException, NoSuchElementException):
+                return False
+
+    def is_form_modal_closed(self) -> bool:
+        with allure.step("Проверка закрытия Form Modal"):
+            try:
+                return self.is_invisible(self.FORM_MODAL_OVERLAY, timeout=3.0)
+            except TimeoutException:
                 return False

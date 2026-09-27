@@ -34,6 +34,7 @@ def driver(request):
         raise ValueError(f"Браузер {browser_name} не поддерживается")
 
     driver_instance.implicitly_wait(0)
+    driver_instance.set_page_load_timeout(30)
     yield driver_instance
     driver_instance.quit()
 
