@@ -10,6 +10,7 @@ def calendar_page(driver):
     page.open_page()
     return page
 
+THANK_YOU_LABEL = "Thank you"
 
 @allure.feature("Календари")
 @allure.suite("Тестирование страницы Calendars")
@@ -104,7 +105,7 @@ class TestCalendarsNegative:
         calendar_page.type_date("2026/12/31")
         calendar_page.submit()
 
-        is_invalid = calendar_page.is_error_displayed() or "Thank you" not in calendar_page.get_success_message()
+        is_invalid = calendar_page.is_error_displayed() or THANK_YOU_LABEL not in calendar_page.get_success_message()
         assert is_invalid, "Форма успешно отправилась с некорректным разделителем даты (/)"
 
     @allure.title("Ввод европейского формата даты (DD-MM-YYYY)")
@@ -113,7 +114,7 @@ class TestCalendarsNegative:
         calendar_page.type_date("31-12-2026")
         calendar_page.submit()
 
-        is_invalid = calendar_page.is_error_displayed() or "Thank you" not in calendar_page.get_success_message()
+        is_invalid = calendar_page.is_error_displayed() or THANK_YOU_LABEL not in calendar_page.get_success_message()
         assert is_invalid, "Форма успешно отправилась с датой в формате DD-MM-YYYY вместо YYYY-MM-DD"
 
     @allure.title("Ввод несуществующей календарной даты (30 февраля)")
@@ -122,7 +123,7 @@ class TestCalendarsNegative:
         calendar_page.type_date("2026-02-30")
         calendar_page.submit()
 
-        is_rejected = calendar_page.is_error_displayed() or "Thank you" not in calendar_page.get_success_message()
+        is_rejected = calendar_page.is_error_displayed() or THANK_YOU_LABEL not in calendar_page.get_success_message()
         assert is_rejected, "Форма пропустила несуществующую календарную дату: 2026-02-30"
 
     @allure.title("Ввод букв и специальных символов в поле даты")
@@ -131,5 +132,5 @@ class TestCalendarsNegative:
         calendar_page.type_date("auto_test_!@#")
         calendar_page.submit()
 
-        is_invalid = calendar_page.is_error_displayed() or "Thank you" not in calendar_page.get_success_message()
+        is_invalid = calendar_page.is_error_displayed() or THANK_YOU_LABEL not in calendar_page.get_success_message()
         assert is_invalid, "Форма отправилась с текстово-символьным значением вместо даты"
