@@ -1,6 +1,6 @@
 import allure
 from selenium.common import TimeoutException, NoSuchElementException
-from selenium.webdriver import Keys
+from selenium.webdriver import Keys, ActionChains
 from selenium.webdriver.common.by import By
 
 from config.settings import urls
@@ -81,6 +81,10 @@ class ModalsPage(BasePage):
         with allure.step("Закрытие Form Modal"):
             self.click(self.FORM_MODAL_CLOSE_BUTTON)
 
+    def close_modal_by_esc(self):
+        with allure.step("Закрытие окна клавишей esc"):
+            ActionChains(self.driver).send_keys(Keys.ESCAPE).perform()
+
     def is_form_modal_displayed(self):
         with allure.step("Проверка наличия Form Modal"):
             try:
@@ -135,15 +139,15 @@ class ModalsPage(BasePage):
     def is_name_error_displayed(self) -> bool:
         with allure.step("Проверка ошибки валидации поля Name"):
             try:
-                el = self.find_element(self.FORM_NAME_ERROR, timeout=1.5)
-                return "has-errors" in (el.get_attribute("class") or "") or bool(el.text.strip())
+                element = self.find_element(self.FORM_NAME_ERROR, timeout=1.5)
+                return "has-errors" in (element.get_attribute("class") or "") or bool(element.text.strip())
             except (TimeoutException, NoSuchElementException):
                 return False
 
     def is_email_error_displayed(self) -> bool:
         with allure.step("Проверка ошибки валидации поля Email"):
             try:
-                el = self.find_element(self.FORM_EMAIL_ERROR, timeout=1.5)
-                return "has-errors" in (el.get_attribute("class") or "") or bool(el.text.strip())
+                element = self.find_element(self.FORM_EMAIL_ERROR, timeout=1.5)
+                return "has-errors" in (element.get_attribute("class") or "") or bool(element.text.strip())
             except (TimeoutException, NoSuchElementException):
                 return False
