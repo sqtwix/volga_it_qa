@@ -1,0 +1,1 @@
+{"name": "Успешное закрытие рекламы кликом по крестику", "status": "skipped", "start": 1790629427276, "stop": 1790629427276, "uuid": "f5118a96-44f8-47cb-941e-24b227302a02", "testCaseId": "e4409ade91bf21ae8de894a76e982ea5", "fullName": "tests.test_ads.TestAdsPositive#test_close_ad_via_close_button"}

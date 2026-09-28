@@ -21,7 +21,7 @@ class AdsPage(BasePage):
 
     def open_page(self):
         with allure.step("Открытие страницы календаря"):
-            self.open(urls.AD)
+            self.open(getattr(urls, "ADS_URL", "https://practice-automation.com/ads/"))
 
     def wait_for_ad_to_appear(self, timeout: float = 6.0):
         """Ожидание автоматического появления рекламы (таймер сайта: ~4.5 сек)."""
