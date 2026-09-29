@@ -99,7 +99,6 @@ class TestAdsNegative:
     @allure.title("Реклама не отображается мгновенно при загрузке (задержка таймера)")
     @allure.severity(allure.severity_level.NORMAL)
     def test_ad_is_not_displayed_immediately(self, ads_page):
-        ads_page.driver.execute_script("window.location.reload();")
         assert not ads_page.is_ad_displayed(), "Реклама отобразилась раньше положенных 4.5 секунд"
 
     @allure.title("Оверлей рекламы блокирует клики по элементам страницы под ним")

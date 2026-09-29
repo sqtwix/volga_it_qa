@@ -1,3 +1,5 @@
+import allure
+from selenium.common import TimeoutException
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as EC
@@ -12,7 +14,11 @@ class BasePage:
         self.wait = WebDriverWait(driver, timeout=timeouts.DEFAULT)
 
     def open(self, url: str):
-        self.driver.get(url)
+        with allure.step(f"Переход по URL: {url}"):
+            try:
+                self.driver.get(url)
+            except TimeoutException:
+                self.driver.execute_script("window.stop();")
 
     def find_element(self, locator: tuple[str, str], timeout: float | None = None) -> WebElement:
         wait = WebDriverWait(self.driver, timeout=timeout) if timeout else self.wait
