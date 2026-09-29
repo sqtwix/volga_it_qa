@@ -1,0 +1,1 @@
+{"name": "Валидация заголовка и содержимого текста рекламы", "status": "skipped", "start": 1790673418831, "stop": 1790673418831, "uuid": "a9079042-5814-401b-8640-f6e3a9270384", "testCaseId": "4bdd3ad119251e8862a53c5713927388", "fullName": "tests.test_ads.TestAdsPositive#test_ad_content_validation"}

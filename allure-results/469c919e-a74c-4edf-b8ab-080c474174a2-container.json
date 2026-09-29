@@ -1,0 +1,1 @@
+{"uuid": "9a5da207-8ef1-4190-bd11-8a188108600a", "children": ["05652aa1-e6cb-44dc-b878-d5345a26b954"], "befores": [{"name": "ads_page", "status": "passed", "steps": [{"name": "Открытие страницы календаря", "status": "passed", "start": 1790670127300, "stop": 1790670133222}], "start": 1790670127300, "stop": 1790670133222}], "start": 1790670127300, "stop": 1790670136438}

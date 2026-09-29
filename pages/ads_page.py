@@ -18,6 +18,7 @@ class AdsPage(BasePage):
     AD_TITLE = (By.ID, "pum_popup_title_1272")
     AD_CONTENT = (By.CSS_SELECTOR, "#popmake-1272 .pum-content p")
     AD_CLOSE_BUTTON = (By.CSS_SELECTOR, "#popmake-1272 button.pum-close")
+    PAGE_LINK = (By.CSS_SELECTOR, ".entry-content a[href*='youtube.com']")
 
     def open_page(self):
         with allure.step("Открытие страницы календаря"):
@@ -81,3 +82,33 @@ class AdsPage(BasePage):
                 return header.is_displayed()
             except (TimeoutException, NoSuchElementException):
                 return False
+
+    def get_close_button_attribute(self, attr_name: str) -> str:
+        with allure.step(f"Получение атрибута '{attr_name}' у кнопки закрытия рекламы"):
+            try:
+                return self.find_element(self.AD_CLOSE_BUTTON).get_attribute(attr_name) or ""
+            except (TimeoutException, NoSuchElementException):
+                return ""
+
+    def close_ad_via_keyboard_enter(self):
+        with allure.step("Закрытие рекламы нажатием Enter на сфокусированной кнопке закрытия"):
+            close_btn = self.find_element(self.AD_CLOSE_BUTTON)
+            close_btn.send_keys(Keys.ENTER)
+
+    def click_ad_content_body(self):
+        with allure.step("Клик по внутреннему содержимому рекламы (тексту/контейнеру)"):
+            self.click(self.AD_CONTENT)
+
+    def try_click_page_link(self):
+        """Пытается кликнуть по ссылке на странице (вызовет ошибку перехвата, если оверлей активен)."""
+        with allure.step("Попытка клика по ссылке на основной странице"):
+            self.click(self.PAGE_LINK)
+
+    def get_page_tutorial_link_data(self) -> dict[str, str]:
+        with allure.step("Получение параметров ссылки на видеоурок"):
+            link_el = self.find_element(self.PAGE_LINK)
+            return {
+                "href": link_el.get_attribute("href") or "",
+                "target": link_el.get_attribute("target") or "",
+                "text": link_el.text.strip()
+            }
