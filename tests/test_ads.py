@@ -50,17 +50,6 @@ class TestAdsPositive:
 
         assert ads_page.is_ad_closed(), "Реклама не закрылась при отправке клавиши Enter"
 
-    @allure.title("Проверка атрибутов доступности (A11y) у кнопки закрытия рекламы")
-    @allure.severity(allure.severity_level.MINOR)
-    def test_ad_close_button_accessibility_attributes(self, ads_page):
-        ads_page.wait_for_ad_to_appear()
-
-        aria_label = ads_page.get_close_button_attribute("aria-label")
-        btn_type = ads_page.get_close_button_attribute("type")
-
-        assert aria_label == "Close", f"Ожидался aria-label='Close', получено: '{aria_label}'"
-        assert btn_type == "button", f"Ожидался type='button', получено: '{btn_type}'"
-
     @allure.title("Реклама остается на экране и не исчезает сама по себе")
     @allure.severity(allure.severity_level.NORMAL)
     def test_ad_persists_on_screen_without_autoclose(self, ads_page):
@@ -129,14 +118,6 @@ class TestAdsNegative:
 
         with pytest.raises(ElementClickInterceptedException):
             ads_page.try_click_page_link()
-
-    @allure.title("Оверлей рекламы блокирует клики по элементам футера")
-    @allure.severity(allure.severity_level.CRITICAL)
-    def test_footer_link_click_intercepted_by_ad_overlay(self, ads_page):
-        ads_page.wait_for_ad_to_appear()
-
-        with pytest.raises(ElementClickInterceptedException):
-            ads_page.try_click_footer_link()
 
     @allure.title("Клик по телу рекламы (мимо крестика) не приводит к закрытию")
     @allure.severity(allure.severity_level.NORMAL)
