@@ -1,7 +1,9 @@
 import allure
+import json
 from selenium.common import TimeoutException, NoSuchElementException
 from selenium.webdriver import Keys, ActionChains
 from selenium.webdriver.common.by import By
+
 
 from config.settings import urls
 from pages.base_page import BasePage
@@ -19,6 +21,9 @@ class AdsPage(BasePage):
     AD_CONTENT = (By.CSS_SELECTOR, "#popmake-1272 .pum-content p")
     AD_CLOSE_BUTTON = (By.CSS_SELECTOR, "#popmake-1272 button.pum-close")
     PAGE_LINK = (By.CSS_SELECTOR, ".entry-content a[href*='youtube.com']")
+    BREADCRUMBS = (By.CSS_SELECTOR, ".breadcrumbs")
+    FOOTER_LINK = (By.CSS_SELECTOR, "footer a[href*='automatenow']")
+    ENTRY_CONTENT = (By.CSS_SELECTOR, ".entry-content")
 
     def open_page(self):
         with allure.step("Открытие страницы календаря"):
@@ -112,3 +117,34 @@ class AdsPage(BasePage):
                 "target": link_el.get_attribute("target") or "",
                 "text": link_el.text.strip()
             }
+
+    def get_ad_auto_open_delay(self) -> int:
+           with allure.step("Получение времени задержки таймера авто-открытия из data-popmake"):
+               overlay = self.find_element(self.AD_OVERLAY)
+               popmake_data = overlay.get_attribute("data-popmake") or "{}"
+               try:
+                   config = json.loads(popmake_data)
+                   triggers = config.get("triggers", [])
+                   for trigger in triggers:
+                       if trigger.get("type") == "auto_open":
+                           return int(trigger.get("settings", {}).get("delay", 0))
+               except (json.JSONDecodeError, ValueError):
+                   pass
+               return 0
+
+    def get_breadcrumbs_text(self) -> str:
+        with allure.step("Получение текста хлебных крошек"):
+            return self.find_element(self.BREADCRUMBS).text.strip()
+
+    def get_page_content_text(self) -> str:
+        with allure.step("Получение полного текста статьи со страницы"):
+            return self.find_element(self.ENTRY_CONTENT).text.strip()
+
+    def has_ad_dismiss_cookies(self) -> bool:
+        with allure.step("Проверка наличия кук, блокирующих показ рекламы"):
+            cookies = self.driver.get_cookies()
+            return any("pum" in c.get("name", "").lower() for c in cookies)
+
+    def try_click_footer_link(self):
+        with allure.step("Попытка клика по ссылке в футере"):
+            self.click(self.FOOTER_LINK)

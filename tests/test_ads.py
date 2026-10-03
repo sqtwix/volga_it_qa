@@ -1,6 +1,6 @@
 import allure
 import pytest
-from selenium.common import ElementClickInterceptedException, TimeoutException
+from selenium.common import ElementClickInterceptedException
 
 from pages.ads_page import AdsPage
 
@@ -15,7 +15,7 @@ def ads_page(driver):
 @allure.feature("Реклама")
 @allure.suite("Тестирование всплывающей рекламы с таймером")
 class TestAdsPositive:
-    """Позитивные сценарии жизненного цикла рекламы и доступности страницы."""
+    """Позитивные сценарии жизненного цикла рекламы и элементов страницы."""
 
     @allure.title("Автоматическое появление рекламного окна через таймер (~4.5 сек)")
     @allure.severity(allure.severity_level.BLOCKER)
@@ -48,7 +48,7 @@ class TestAdsPositive:
         ads_page.wait_for_ad_to_appear()
         ads_page.close_ad_via_keyboard_enter()
 
-        assert ads_page.is_ad_closed(), "Реклама не закрылась при отправке клавиши Enter в кнопку закрытия"
+        assert ads_page.is_ad_closed(), "Реклама не закрылась при отправке клавиши Enter"
 
     @allure.title("Проверка атрибутов доступности (A11y) у кнопки закрытия рекламы")
     @allure.severity(allure.severity_level.MINOR)
@@ -90,24 +90,53 @@ class TestAdsPositive:
         assert "youtube.com/watch?v=FZBGRjv0pqU" in link_data["href"], "Неверный URL в ссылке урока"
         assert link_data["target"] == "_blank", "Ссылка должна открываться в новой вкладке (target='_blank')"
 
+    @allure.title("Проверка навигационной цепочки (Breadcrumbs)")
+    @allure.severity(allure.severity_level.MINOR)
+    def test_breadcrumbs_display(self, ads_page):
+        breadcrumbs = ads_page.get_breadcrumbs_text()
+        assert "Home" in breadcrumbs and "Ads" in breadcrumbs, f"Некорректные хлебные крошки: '{breadcrumbs}'"
+
+    @pytest.mark.parametrize(
+        "expected_phrase",
+        [
+            "An ad will appear in 5…4…3…2…1",
+            "Please make sure that ad blockers are turned off",
+        ],
+        ids=["countdown_notice", "adblocker_warning"]
+    )
+    @allure.title("Проверка наличия ключевых текстовых предупреждений на странице")
+    @allure.severity(allure.severity_level.MINOR)
+    def test_page_warning_notices(self, ads_page, expected_phrase: str):
+        page_text = ads_page.get_page_content_text()
+        assert expected_phrase in page_text, f"Фраза '{expected_phrase}' не найдена в основном тексте страницы"
+
 
 @allure.feature("Реклама")
 @allure.suite("Тестирование всплывающей рекламы с таймером")
 class TestAdsNegative:
     """Негативные сценарии: защитные механизмы оверлея и блокировка фона."""
 
-    @allure.title("Реклама не отображается мгновенно при загрузке (задержка таймера)")
+    @allure.title("Проверка настройки задержки таймера авто-открытия (4.5 секунды)")
     @allure.severity(allure.severity_level.NORMAL)
-    def test_ad_is_not_displayed_immediately(self, ads_page):
-        assert not ads_page.is_ad_displayed(), "Реклама отобразилась раньше положенных 4.5 секунд"
+    def test_ad_auto_open_delay_configuration(self, ads_page):
+        delay = ads_page.get_ad_auto_open_delay()
+        assert delay == 4500, f"Ожидалась задержка авто-открытия 4500 мс (4.5с), получено: {delay}"
 
-    @allure.title("Оверлей рекламы блокирует клики по элементам страницы под ним")
+    @allure.title("Оверлей рекламы блокирует клики по ссылкам страницы под ним")
     @allure.severity(allure.severity_level.CRITICAL)
     def test_page_link_click_intercepted_by_ad_overlay(self, ads_page):
         ads_page.wait_for_ad_to_appear()
 
         with pytest.raises(ElementClickInterceptedException):
             ads_page.try_click_page_link()
+
+    @allure.title("Оверлей рекламы блокирует клики по элементам футера")
+    @allure.severity(allure.severity_level.CRITICAL)
+    def test_footer_link_click_intercepted_by_ad_overlay(self, ads_page):
+        ads_page.wait_for_ad_to_appear()
+
+        with pytest.raises(ElementClickInterceptedException):
+            ads_page.try_click_footer_link()
 
     @allure.title("Клик по телу рекламы (мимо крестика) не приводит к закрытию")
     @allure.severity(allure.severity_level.NORMAL)
