@@ -17,6 +17,7 @@ class UrlSettings:
     CALENDAR_URL: str = f'{BASE_URL}/calendars/'
     MODAL_URL: str = f'{BASE_URL}/modals/'
     ADS_URL: str = f'{BASE_URL}/ads/'
+    FORM_FIELDS_URL: str = f'{BASE_URL}/form-fields/'
 
 
 timeouts = TimeoutSettings()
