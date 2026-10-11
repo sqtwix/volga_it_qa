@@ -1,3 +1,5 @@
+from datetime import date
+
 import allure
 import pytest
 
@@ -10,7 +12,9 @@ def calendar_page(driver):
     page.open_page()
     return page
 
+
 THANK_YOU_LABEL = "Thank you"
+
 
 @allure.feature("Календари")
 @allure.suite("Тестирование страницы Calendars")
@@ -20,36 +24,51 @@ class TestCalendarsPositive:
     @allure.title("Выбор дня текущего месяца в датапикере")
     @allure.severity(allure.severity_level.CRITICAL)
     def test_select_day_in_current_month(self, calendar_page):
+        target_day = 15
+        expected_date = date.today().replace(day=target_day).isoformat()
+
         calendar_page.open_picker()
-        calendar_page.select_day_in_picker(day=15)
+        calendar_page.select_day_in_picker(day=target_day)
 
         actual_value = calendar_page.get_input_value()
-        assert actual_value.endswith("-15"), (
-            f"Ожидался выбранный день '15' в конце даты, получено: '{actual_value}'"
+        assert actual_value == expected_date, (
+            f"Ожидался выбранный день '{expected_date}' в конце даты, получено: '{actual_value}'"
         )
 
     @allure.title("Переключение на следующий месяц и выбор даты")
     @allure.severity(allure.severity_level.NORMAL)
     def test_select_day_in_next_month(self, calendar_page):
+        target_day = 18
+        today = date.today()
+        expected_year = today.year + 1 if today.month == 12 else today.year
+        expected_month = 1 if today.month == 12 else today.month + 1
+        expected_date = f"{expected_year:04d}-{expected_month:02d}-{target_day:02d}"
+
         calendar_page.open_picker()
         calendar_page.click_next_month_in_picker()
-        calendar_page.select_day_in_picker(day=18)
+        calendar_page.select_day_in_picker(day=target_day)
 
         actual_value = calendar_page.get_input_value()
-        assert actual_value.endswith("-18"), (
-            f"Ожидался выбранный день '18' в конце даты, получено: '{actual_value}'"
+        assert actual_value == expected_date, (
+            f"Ожидалась полная дата '{expected_date}', но получено: '{actual_value}'"
         )
 
     @allure.title("Переключение на предыдущий месяц и выбор даты")
     @allure.severity(allure.severity_level.NORMAL)
     def test_picker_prev_month_navigation_and_selection(self, calendar_page):
+        target_day = 10
+        today = date.today()
+        expected_year = today.year - 1 if today.month == 1 else today.year
+        expected_month = 12 if today.month == 1 else today.month - 1
+        expected_date = f"{expected_year:04d}-{expected_month:02d}-{target_day:02d}"
+
         calendar_page.open_picker()
         calendar_page.click_prev_month_in_picker()
-        calendar_page.select_day_in_picker(day=10)
+        calendar_page.select_day_in_picker(day=target_day)
 
         actual_value = calendar_page.get_input_value()
-        assert actual_value.endswith("-10"), (
-            f"Ожидался выбранный день '10' предыдущего месяца, получено: '{actual_value}'"
+        assert actual_value == expected_date, (
+            f"Ожидался выбранный день '{expected_date}' предыдущего месяца, получено: '{actual_value}'"
         )
 
     @allure.severity(allure.severity_level.NORMAL)
@@ -105,8 +124,14 @@ class TestCalendarsNegative:
         calendar_page.type_date("2026/12/31")
         calendar_page.submit()
 
-        is_invalid = calendar_page.is_error_displayed() or THANK_YOU_LABEL not in calendar_page.get_success_message()
-        assert is_invalid, "Форма успешно отправилась с некорректным разделителем даты (/)"
+        assert calendar_page.is_error_displayed(), (
+            "Сообщение об ошибке валидации формата даты не отобразилось"
+        )
+
+        error_text = calendar_page.get_error_message()
+        assert "Please fill out the form correctly" in error_text, (
+            f"Неожиданный текст ошибки: '{error_text}'"
+        )
 
     @allure.title("Ввод европейского формата даты (DD-MM-YYYY)")
     @allure.severity(allure.severity_level.NORMAL)
@@ -114,8 +139,7 @@ class TestCalendarsNegative:
         calendar_page.type_date("31-12-2026")
         calendar_page.submit()
 
-        is_invalid = calendar_page.is_error_displayed() or THANK_YOU_LABEL not in calendar_page.get_success_message()
-        assert is_invalid, "Форма успешно отправилась с датой в формате DD-MM-YYYY вместо YYYY-MM-DD"
+        assert calendar_page.is_error_displayed(), "Форма успешно отправилась с датой в формате DD-MM-YYYY вместо YYYY-MM-DD"
 
     @allure.title("Ввод несуществующей календарной даты (30 февраля)")
     @allure.severity(allure.severity_level.CRITICAL)
@@ -123,8 +147,7 @@ class TestCalendarsNegative:
         calendar_page.type_date("2026-02-30")
         calendar_page.submit()
 
-        is_rejected = calendar_page.is_error_displayed() or THANK_YOU_LABEL not in calendar_page.get_success_message()
-        assert is_rejected, "Форма пропустила несуществующую календарную дату: 2026-02-30"
+        assert calendar_page.is_error_displayed(), "Форма пропустила несуществующую календарную дату: 2026-02-30"
 
     @allure.title("Ввод букв и специальных символов в поле даты")
     @allure.severity(allure.severity_level.CRITICAL)
@@ -132,5 +155,4 @@ class TestCalendarsNegative:
         calendar_page.type_date("auto_test_!@#")
         calendar_page.submit()
 
-        is_invalid = calendar_page.is_error_displayed() or THANK_YOU_LABEL not in calendar_page.get_success_message()
-        assert is_invalid, "Форма отправилась с текстово-символьным значением вместо даты"
+        assert calendar_page.is_error_displayed(), "Форма отправилась с текстово-символьным значением вместо даты"

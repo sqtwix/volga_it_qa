@@ -1,9 +1,11 @@
-import allure
 import json
+
+import allure
 from selenium.common import TimeoutException, NoSuchElementException
 from selenium.webdriver import Keys, ActionChains
 from selenium.webdriver.common.by import By
-
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.wait import WebDriverWait
 
 from config.settings import urls
 from pages.base_page import BasePage
@@ -13,6 +15,9 @@ class AdsPage(BasePage):
     # Локаторы страницы
     PAGE_TITLE = (By.CSS_SELECTOR, "h1")
     PAGE_TEXT = (By.CSS_SELECTOR, ".entry-content p")
+
+    # Элемент основной страницы, гарантированно видимый ДО появления рекламы
+    PAGE_READY_LOCATOR = PAGE_TITLE
 
     # Локаторы рекламного модального окна
     AD_OVERLAY = (By.ID, "pum-1272")
@@ -26,17 +31,13 @@ class AdsPage(BasePage):
     ENTRY_CONTENT = (By.CSS_SELECTOR, ".entry-content")
 
     def open_page(self):
-        with allure.step("Открытие страницы календаря"):
+        with allure.step("Открытие страницы с рекламой"):
             self.open(urls.ADS_URL)
 
-    def wait_for_ad_to_appear(self, timeout: float = 6.0):
-        """Ожидание автоматического появления рекламы (таймер сайта: ~4.5 сек)."""
+    def wait_for_ad_to_appear(self, timeout: float = 8.0):
+        """Ожидает появления рекламного окна. При таймауте выбрасывает TimeoutException."""
         with allure.step(f"Ожидание появления рекламного окна (таймаут: {timeout}с)"):
-            try:
-                element = self.find_element(self.AD_CONTAINER, timeout=timeout)
-                return element.is_displayed()
-            except (TimeoutException, NoSuchElementException):
-                return False
+            return self.find_element(self.AD_CONTAINER, timeout=timeout)
 
     def is_ad_displayed(self) -> bool:
         """Мгновенная проверка видимости окна без долгого ожидания."""
@@ -77,16 +78,19 @@ class AdsPage(BasePage):
             ActionChains(self.driver).send_keys(Keys.ESCAPE).perform()
 
     def click_outside_ad(self):
-        with allure.step("Попытка закрытия кликом по оверлею (мимо рекламного окна)"):
-            self.click(self.AD_OVERLAY)
+        with allure.step("Клик по левому краю оверлея"):
+            overlay = self.find_element(self.AD_OVERLAY)
+            # смещение влево, чтобы клик был не по центру
+            offset_x = -(overlay.size["width"] // 2) + 20
 
-    def is_page_header_interactive(self) -> bool:
-        with allure.step("Проверка доступности элементов основной страницы после закрытия рекламы"):
-            try:
-                header = self.find_element(self.PAGE_TITLE, timeout=2.0)
-                return header.is_displayed()
-            except (TimeoutException, NoSuchElementException):
-                return False
+            ActionChains(self.driver) \
+                .move_to_element_with_offset(overlay, offset_x, 0) \
+                .click() \
+                .perform()
+
+    def is_page_link_clickable(self, timeout: float = 3.0) -> bool:
+        with allure.step("Проверка кликабельности ссылки статьи"):
+            return self.is_clickable(self.PAGE_LINK, timeout=timeout)
 
     def get_close_button_attribute(self, attr_name: str) -> str:
         with allure.step(f"Получение атрибута '{attr_name}' у кнопки закрытия рекламы"):
@@ -119,18 +123,18 @@ class AdsPage(BasePage):
             }
 
     def get_ad_auto_open_delay(self) -> int:
-           with allure.step("Получение времени задержки таймера авто-открытия из data-popmake"):
-               overlay = self.find_element(self.AD_OVERLAY)
-               popmake_data = overlay.get_attribute("data-popmake") or "{}"
-               try:
-                   config = json.loads(popmake_data)
-                   triggers = config.get("triggers", [])
-                   for trigger in triggers:
-                       if trigger.get("type") == "auto_open":
-                           return int(trigger.get("settings", {}).get("delay", 0))
-               except (json.JSONDecodeError, ValueError):
-                   pass
-               return 0
+        with allure.step("Получение времени задержки таймера авто-открытия из data-popmake"):
+            overlay = self.find_element(self.AD_OVERLAY)
+            popmake_data = overlay.get_attribute("data-popmake") or "{}"
+            try:
+                config = json.loads(popmake_data)
+                triggers = config.get("triggers", [])
+                for trigger in triggers:
+                    if trigger.get("type") == "auto_open":
+                        return int(trigger.get("settings", {}).get("delay", 0))
+            except (json.JSONDecodeError, ValueError):
+                pass
+            return 0
 
     def get_breadcrumbs_text(self) -> str:
         with allure.step("Получение текста хлебных крошек"):
@@ -148,3 +152,23 @@ class AdsPage(BasePage):
     def try_click_footer_link(self):
         with allure.step("Попытка клика по ссылке в футере"):
             self.click(self.FOOTER_LINK)
+
+    def open_tutorial_link(self) -> str:
+        """Кликает по ссылке, переключается на открывшуюся вкладку и возвращает исходный window_handle."""
+        with allure.step("Клик по ссылке на видеоурок и переход на новую вкладку"):
+            original_window = self.driver.current_window_handle
+            self.click(self.PAGE_LINK)
+            self.switch_to_new_window(original_window)
+            return original_window
+
+    def is_tutorial_page_opened(self, timeout: float = 5.0) -> bool:
+        """Проверяет, что текущий URL содержит youtube.com."""
+        with allure.step("Проверка открытия страницы YouTube"):
+            try:
+                return bool(
+                    WebDriverWait(self.driver, timeout).until(
+                        EC.url_contains("youtube.com")
+                    )
+                )
+            except TimeoutException:
+                return False

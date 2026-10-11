@@ -34,17 +34,13 @@ class ModalsPage(BasePage):
     FORM_SUCCESS_CONTAINER = (By.CSS_SELECTOR, "#popmake-674 div[id^='contact-form-success']")
     FORM_BACK_LINK = (By.CSS_SELECTOR,
                       "#popmake-674 a.go-back-message, #popmake-674 a[data-wp-on--click='actions.goBack']")
-    FORM_BACK_LINK = (By.CSS_SELECTOR,
-                      "#popmake-674 a.link[data-wp-on--click='actions.goBack'], #popmake-674 .go-back-message a")
 
-    SIMPLE_MODAL_TEXT = (By.CSS_SELECTOR, "#popmake-1318 .pum-content p")
+    # Страница готова, когда кнопка вызова модального окна отрисована и доступна
+    PAGE_READY_LOCATOR = SIMPLE_MODAL_BUTTON
 
     def open_page(self):
         with allure.step("Открытие страницы модальных окон"):
-            try:
-                self.open(urls.MODAL_URL)
-            except TimeoutException:
-                self.driver.execute_script("window.stop();")
+            self.open(urls.MODAL_URL)
 
     def clear_input(self, element):
         with allure.step("Очистка поля ввода"):
@@ -182,7 +178,14 @@ class ModalsPage(BasePage):
 
     def click_outside_modal(self):
         with allure.step("Кликнуть по фоновому оверлею за пределами окна"):
-            self.click(self.FORM_MODAL_OVERLAY)
+            overlay = self.find_element(self.FORM_MODAL_OVERLAY)
+            # смещение влево, чтобы клик был не по центру
+            offset_x = -(overlay.size["width"] // 2) + 20
+
+            ActionChains(self.driver) \
+                .move_to_element_with_offset(overlay, offset_x, 0) \
+                .click() \
+                .perform()
 
     def is_form_inputs_visible(self) -> bool:
         with allure.step("Проверить отображение полей ввода формы"):

@@ -1,7 +1,7 @@
 import allure
 import pytest
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.common import WebDriverException
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
 
 
@@ -11,45 +11,59 @@ def pytest_addoption(parser):
     parser.addoption("--headless", action="store_true", help="Run in headless mode")
 
 
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Перехват отчетов для всех этапов жизненного цикла теста."""
+    outcome = yield
+    rep = outcome.get_result()
+
+    setattr(item, f"rep_{rep.when}", rep)
+
+    if rep.failed:
+        driver = getattr(item, "_driver", None) or item.funcargs.get("driver", None)
+
+        if driver is not None:
+            try:
+                allure.attach(
+                    driver.get_screenshot_as_png(),
+                    name=f"failure_{rep.when}",
+                    attachment_type=allure.attachment_type.PNG,
+                )
+            except WebDriverException:
+                pass
+
+
 @pytest.fixture(scope="function")
 def driver(request):
-    """Фикстура создания и завершения сессии браузера."""
-    browser_name = request.config.getoption("--browser").lower()
+    browser_name = request.config.getoption("--browser", default="firefox")
     is_headless = request.config.getoption("--headless")
 
-    if browser_name == "chrome":
-        options = ChromeOptions()
-        if is_headless:
-            options.add_argument("--headless")
-        options.add_argument("--window-size=1920,1080")
-        options.add_argument("--disable-gpu")
-        driver_instance = webdriver.Chrome(options=options)
-    elif browser_name == "firefox":
+    if browser_name == "firefox":
         options = FirefoxOptions()
+        options.page_load_strategy = "eager"
         if is_headless:
             options.add_argument("-headless")
         driver_instance = webdriver.Firefox(options=options)
-        driver_instance.set_window_size(1920, 1080)
+    elif browser_name == "chrome":
+        options = webdriver.ChromeOptions()
+        options.page_load_strategy = "eager"
+        if is_headless:
+            options.add_argument("-headless")
+        driver_instance = webdriver.Chrome(options=options)
     else:
-        raise ValueError(f"Браузер {browser_name} не поддерживается")
+        raise ValueError(f"Неподдерживаемый браузер: {browser_name}")
 
-    driver_instance.implicitly_wait(0)
-    driver_instance.set_page_load_timeout(30)
-    yield driver_instance
-    driver_instance.quit()
+    try:
+        driver_instance.set_window_size(1920, 1080)
+        driver_instance.set_page_load_timeout(15)
 
+        request.node._driver = driver_instance
 
-@pytest.hookimpl(tryfirst=True, hookwrapper=True)
-def pytest_runtest_makereport(item, call):
-    """Хук Allure: автоматически делает скриншот экрана при падении теста."""
-    outcome = yield
-    report = outcome.get_result()
+        yield driver_instance
 
-    if report.when == "call" and report.failed:
-        driver_instance = item.funcargs.get("driver")
-        if driver_instance:
-            allure.attach(
-                driver_instance.get_screenshot_as_png(),
-                name="failure_screenshot",
-                attachment_type=allure.attachment_type.PNG
-            )
+    finally:
+        if driver_instance is not None:
+            try:
+                driver_instance.quit()
+            except WebDriverException:
+                pass

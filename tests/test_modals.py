@@ -122,67 +122,47 @@ class TestModalsPositive:
 @allure.feature("Модальные окна")
 @allure.suite("Тестирование страницы Modals")
 class TestModalsNegative:
-    """Негативные сценарии валидации полей и защитных механизмов окон."""
+    """Негативные сценарии валидации полей контактной формы."""
 
-    @allure.feature("Модальные окна")
-    @allure.suite("Тестирование страницы Modals")
-    class TestModalsNegative:
-        """Негативные сценарии валидации полей контактной формы."""
+    @allure.story("Валидация поля Name")
+    @pytest.mark.parametrize(
+        "invalid_name, description",
+        [
+            ("", "пустая строка"),
+            ("    ", "строка только из пробелов"),
+        ],
+        ids=["empty_name", "whitespace_name"]
+    )
+    @allure.severity(allure.severity_level.CRITICAL)
+    def test_submit_form_invalid_name(self, modals_page, invalid_name: str, description: str):
+        allure.dynamic.title(f"Отправка формы с невалидным именем: {description}")
+        modals_page.open_form_modal()
+        modals_page.type_name(invalid_name)
+        modals_page.type_email("qa@example.com")
+        modals_page.type_message("Текст")
+        modals_page.submit_form()
+        assert modals_page.is_name_error_displayed(), f"Форма пропустила невалидное имя ({description})"
 
-        @allure.story("Валидация поля Name")
-        @pytest.mark.parametrize(
-            "invalid_name, description",
-            [
-                ("", "пустая строка"),
-                ("    ", "строка только из пробелов"),
-            ],
-            ids=["empty_name", "whitespace_name"]
-        )
-        @allure.severity(allure.severity_level.CRITICAL)
-        def test_submit_form_invalid_name(self, modals_page, invalid_name: str, description: str):
-            allure.dynamic.title(f"Отправка формы с невалидным именем: {description}")
+    @allure.story("Валидация поля Email")
+    @pytest.mark.parametrize(
+        "invalid_email, description",
+        [
+            ("plain_text", "текст без знака @ и домена"),
+            ("user@", "нет доменной части"),
+            ("@domain.com", "нет имени пользователя"),
+        ],
+        ids=["no_at", "no_domain", "no_user"]
+    )
+    @allure.severity(allure.severity_level.CRITICAL)
+    def test_submit_form_invalid_email(self, modals_page, invalid_email: str, description: str):
+        allure.dynamic.title(f"Отправка формы с невалидным email: {description}")
+        modals_page.open_form_modal()
+        modals_page.type_name("Иван")
+        modals_page.type_email(invalid_email)
+        modals_page.type_message("Текст")
+        modals_page.submit_form()
 
-            modals_page.open_form_modal()
-
-            modals_page.type_name(invalid_name)
-            modals_page.type_email("qa@example.com")
-            modals_page.type_message("Текст")
-
-            modals_page.submit_form()
-
-            is_rejected = (
-                    modals_page.is_name_error_displayed()
-                    or "Thank you" not in modals_page.get_form_success_message(timeout=1.5)
-            )
-            assert is_rejected, f"Форма пропустила невалидное имя ({description})"
-
-        @allure.story("Валидация поля Email")
-        @pytest.mark.parametrize(
-            "invalid_email, description",
-            [
-                ("plain_text", "текст без знака @ и домена"),
-                ("user@", "нет доменной части"),
-                ("@domain.com", "нет имени пользователя"),
-            ],
-            ids=["no_at", "no_domain", "no_user"]
-        )
-        @allure.severity(allure.severity_level.CRITICAL)
-        def test_submit_form_invalid_email(self, modals_page, invalid_email: str, description: str):
-            allure.dynamic.title(f"Отправка формы с невалидным email: {description}")
-
-            modals_page.open_form_modal()
-
-            modals_page.type_name("Иван")
-            modals_page.type_email(invalid_email)
-            modals_page.type_message("Текст")
-
-            modals_page.submit_form()
-
-            is_rejected = (
-                    modals_page.is_email_error_displayed()
-                    or "Thank you" not in modals_page.get_form_success_message(timeout=1.5)
-            )
-            assert is_rejected, f"Форма пропустила невалидный email ({description})"
+        assert modals_page.is_email_error_displayed(), f"Форма пропустила невалидный email ({description})"
 
     @allure.story("Защита окон")
     @allure.title("Попытка закрытия Simple Modal клавишей Escape (запрещено конфигурацией)")
@@ -190,7 +170,6 @@ class TestModalsNegative:
     def test_simple_modal_does_not_close_on_escape(self, modals_page):
         modals_page.open_simple_modal()
         modals_page.close_modal_by_esc()
-
         assert modals_page.is_simple_modal_displayed(), (
             "Simple Modal закрылось по нажатию Escape, хотя esc_press=false"
         )
@@ -201,7 +180,6 @@ class TestModalsNegative:
     def test_modal_does_not_close_on_overlay_click(self, modals_page):
         modals_page.open_form_modal()
         modals_page.click_outside_modal()
-
         assert modals_page.is_form_modal_displayed(), (
             "Модальное окно закрылось при клике на оверлей, хотя overlay_click отключен"
         )

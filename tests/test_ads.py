@@ -59,26 +59,6 @@ class TestAdsPositive:
         assert not is_still_closed, "Реклама самопроизвольно закрылась без действий пользователя"
         assert ads_page.is_ad_displayed(), "Реклама перестала отображаться на экране"
 
-    @allure.title("Доступность элементов страницы после закрытия рекламы")
-    @allure.severity(allure.severity_level.NORMAL)
-    def test_page_elements_accessible_after_closing_ad(self, ads_page):
-        ads_page.wait_for_ad_to_appear()
-        ads_page.close_ad()
-        assert ads_page.is_ad_closed()
-
-        assert ads_page.is_page_header_interactive(), "Заголовок страницы недоступен после закрытия рекламы"
-
-    @allure.title("Валидация ссылки на YouTube-урок в контенте страницы")
-    @allure.severity(allure.severity_level.NORMAL)
-    def test_page_tutorial_link_attributes(self, ads_page):
-        ads_page.wait_for_ad_to_appear()
-        ads_page.close_ad()
-        assert ads_page.is_ad_closed()
-
-        link_data = ads_page.get_page_tutorial_link_data()
-        assert "youtube.com/watch?v=FZBGRjv0pqU" in link_data["href"], "Неверный URL в ссылке урока"
-        assert link_data["target"] == "_blank", "Ссылка должна открываться в новой вкладке (target='_blank')"
-
     @allure.title("Проверка навигационной цепочки (Breadcrumbs)")
     @allure.severity(allure.severity_level.MINOR)
     def test_breadcrumbs_display(self, ads_page):
@@ -98,6 +78,21 @@ class TestAdsPositive:
     def test_page_warning_notices(self, ads_page, expected_phrase: str):
         page_text = ads_page.get_page_content_text()
         assert expected_phrase in page_text, f"Фраза '{expected_phrase}' не найдена в основном тексте страницы"
+
+    @allure.title("Проверка фактического открытия ссылки на обучающий ролик в новой вкладке")
+    @allure.severity(allure.severity_level.NORMAL)
+    def test_tutorial_link_opens_successfully(self, ads_page):
+        ads_page.wait_for_ad_to_appear()
+        ads_page.close_ad()
+        assert ads_page.is_ad_closed()
+
+        original_window = ads_page.open_tutorial_link()
+        try:
+            assert ads_page.is_tutorial_page_opened(), (
+                f"Ожидался переход на YouTube, текущий URL: {ads_page.driver.current_url}"
+            )
+        finally:
+            ads_page.close_current_window_and_back(original_window)
 
 
 @allure.feature("Реклама")

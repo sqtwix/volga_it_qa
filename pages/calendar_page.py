@@ -19,6 +19,9 @@ class CalendarPage(BasePage):
     DATEPICKER_NEXT_MONTH = (By.CSS_SELECTOR, ".dp-next, button.dp-next")
     DATEPICKER_PREV_MONTH = (By.CSS_SELECTOR, ".dp-prev, button.dp-prev")
 
+    # Страница готова, когда поле даты доступно для взаимодействия
+    PAGE_READY_LOCATOR = DATE_INPUT
+
     DAY_IN_PICKER_XPATH = (
         "//div[contains(@class, 'dp')]//button[contains(@class, 'dp-day') "
         "and not(contains(@class, 'dp-edge-day')) and normalize-space()='{day}']"

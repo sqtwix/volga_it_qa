@@ -1,5 +1,6 @@
 import allure
 from selenium.webdriver.common.by import By
+
 from config.settings import urls
 from pages.base_page import BasePage
 
@@ -11,6 +12,9 @@ class FormFieldsPage(BasePage):
         "//*[contains(text(), 'Automation tools')]/following-sibling::ul[1]/li"
     )
     MESSAGE_TEXTAREA = (By.ID, "message")
+
+    # Ключевой элемент готовности формы — текстовая область Message
+    PAGE_READY_LOCATOR = MESSAGE_TEXTAREA
 
     def open_page(self):
         with allure.step("Открытие страницы Form Fields"):
