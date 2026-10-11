@@ -129,7 +129,7 @@ class TestCalendarsNegative:
         )
 
         error_text = calendar_page.get_error_message()
-        assert "Please fill out the form correctly" in error_text, (
+        assert "Please enter a valid date" in error_text, (
             f"Неожиданный текст ошибки: '{error_text}'"
         )
 

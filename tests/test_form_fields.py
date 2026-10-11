@@ -1,5 +1,6 @@
 import allure
 import pytest
+
 from pages.form_fields_page import FormFieldsPage
 
 

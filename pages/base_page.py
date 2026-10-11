@@ -1,5 +1,6 @@
 import allure
-from selenium.common import TimeoutException, WebDriverException
+from selenium.common import TimeoutException, WebDriverException, ElementNotInteractableException, \
+    ElementClickInterceptedException
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as EC
@@ -64,9 +65,21 @@ class BasePage:
         return wait.until(EC.presence_of_all_elements_located(locator))
 
     def click(self, locator: tuple[str, str], timeout: float | None = None):
+        """Кликает по элементу с автоматическим скроллом и JS-фолбэком для модальных окон."""
         wait = WebDriverWait(self.driver, timeout=timeout) if timeout is not None else self.wait
-        element = wait.until(EC.element_to_be_clickable(locator))
-        element.click()
+        element = wait.until(EC.presence_of_element_located(locator))
+        try:
+            clickable_el = wait.until(EC.element_to_be_clickable(locator))
+            clickable_el.click()
+        except (ElementNotInteractableException, ElementClickInterceptedException):
+            # Прокручиваем элемент в центр модального окна
+            self.driver.execute_script(
+                "arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", element
+            )
+            try:
+                element.click()
+            except (ElementNotInteractableException, ElementClickInterceptedException):
+                self.driver.execute_script("arguments[0].click();", element)
 
     def type_text(self, locator: tuple[str, str], text: str):
         element = self.find_element(locator)
