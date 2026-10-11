@@ -14,6 +14,7 @@
 # allure reports
 allure-results/
 allure-report/
+tmp/
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
