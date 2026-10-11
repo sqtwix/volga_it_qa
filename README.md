@@ -67,6 +67,20 @@ pip install -r requirements.txt
 python -m pytest
 ```
 
+4. Запуск локального сервера с аллюр отчётом:
+
+```bash
+allure serve <ваша папка с аллюр данными> 
+allure serve allure-results/firefox # пример с папкой allure-results/firefox
+```
+
+5. Сохранение отчета
+
+```bash
+allure generate allure-results/firefox --clean -o allure-report/firefox
+allure open allure-report/firefox
+```
+
 ## Возможности запуска
 
 тесты можно запустить на браузере firefox и chrome (по дефолту) благодаря параметру ```--browser=<browser>```
