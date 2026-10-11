@@ -11,6 +11,10 @@
 *.sln.docstates
 *.env
 
+# allure reports
+allure-results/
+allure-report/
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
