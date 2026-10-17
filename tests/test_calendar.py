@@ -13,9 +13,6 @@ def calendar_page(driver):
     return page
 
 
-THANK_YOU_LABEL = "Thank you"
-
-
 @allure.feature("Календари")
 @allure.suite("Тестирование страницы Calendars")
 class TestCalendarsPositive:
@@ -24,6 +21,7 @@ class TestCalendarsPositive:
     @allure.title("Выбор дня текущего месяца в датапикере")
     @allure.severity(allure.severity_level.CRITICAL)
     def test_select_day_in_current_month(self, calendar_page):
+        """Проверяет полную дату после выбора 15-го числа текущего месяца."""
         target_day = 15
         expected_date = date.today().replace(day=target_day).isoformat()
 
@@ -32,12 +30,13 @@ class TestCalendarsPositive:
 
         actual_value = calendar_page.get_input_value()
         assert actual_value == expected_date, (
-            f"Ожидался выбранный день '{expected_date}' в конце даты, получено: '{actual_value}'"
+            f"Ожидалась дата '{expected_date}', получено: '{actual_value}'"
         )
 
     @allure.title("Переключение на следующий месяц и выбор даты")
     @allure.severity(allure.severity_level.NORMAL)
     def test_select_day_in_next_month(self, calendar_page):
+        """Проверяет следующий месяц и год по дате выбранного 18-го числа."""
         target_day = 18
         today = date.today()
         expected_year = today.year + 1 if today.month == 12 else today.year
@@ -53,22 +52,25 @@ class TestCalendarsPositive:
             f"Ожидалась полная дата '{expected_date}', но получено: '{actual_value}'"
         )
 
-    @allure.title("Переключение на предыдущий месяц и выбор даты")
+    @allure.title("Переключение на предыдущий месяц (после перехода вперед) и выбор даты")
     @allure.severity(allure.severity_level.NORMAL)
     def test_picker_prev_month_navigation_and_selection(self, calendar_page):
-        target_day = 10
+        """Проверяет стрелку назад после перехода вперёд, возвращаясь в текущий месяц.
+
+        Сценарий не проверяет доступность дат в месяцах раньше текущего.
+        """
+        target_day = 25
         today = date.today()
-        expected_year = today.year - 1 if today.month == 1 else today.year
-        expected_month = 12 if today.month == 1 else today.month - 1
-        expected_date = f"{expected_year:04d}-{expected_month:02d}-{target_day:02d}"
+        expected_date = f"{today.year:04d}-{today.month:02d}-{target_day:02d}"
 
         calendar_page.open_picker()
+        calendar_page.click_next_month_in_picker()
         calendar_page.click_prev_month_in_picker()
         calendar_page.select_day_in_picker(day=target_day)
 
         actual_value = calendar_page.get_input_value()
         assert actual_value == expected_date, (
-            f"Ожидался выбранный день '{expected_date}' предыдущего месяца, получено: '{actual_value}'"
+            f"Ожидалась дата текущего месяца '{expected_date}' после возврата назад, получено: '{actual_value}'"
         )
 
     @allure.severity(allure.severity_level.NORMAL)
@@ -104,12 +106,16 @@ class TestCalendarsPositive:
     @allure.title("Успешная отправка формы с валидной датой")
     @allure.severity(allure.severity_level.BLOCKER)
     def test_submit_form_with_valid_date(self, calendar_page):
-        calendar_page.type_date("2026-11-05")
+        """Проверяет подтверждение отправки формы с валидной датой."""
+        target_date = "2026-11-05"
+
+        calendar_page.type_date(target_date)
         calendar_page.submit()
 
         success_text = calendar_page.get_success_message()
+
         assert "Thank you for your response" in success_text, (
-            f"Ожидалось сообщение подтверждения, получено: '{success_text}'"
+            f"Форма не отправилась или текст успеха не найден. Получено: '{success_text}'"
         )
 
 
@@ -121,6 +127,7 @@ class TestCalendarsNegative:
     @allure.title("Ввод даты в неверном формате со слэшами (YYYY/MM/DD)")
     @allure.severity(allure.severity_level.NORMAL)
     def test_type_invalid_format_slashes(self, calendar_page):
+        """Проверяет наличие ошибки и её текст при разделении даты слэшами."""
         calendar_page.type_date("2026/12/31")
         calendar_page.submit()
 

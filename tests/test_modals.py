@@ -83,6 +83,7 @@ class TestModalsPositive:
     )
     @allure.severity(allure.severity_level.BLOCKER)
     def test_submit_form_modal_valid_data(self, modals_page, name: str, email: str, text: str, description: str):
+        """Проверяет подтверждение отправки и наличие непустых входных значений в сводке."""
         allure.dynamic.title(f"Успешная отправка формы ({description})")
 
         modals_page.open_form_modal()
@@ -105,6 +106,7 @@ class TestModalsPositive:
     @allure.title("Возврат к исходной форме по ссылке '← Back' после успешной отправки")
     @allure.severity(allure.severity_level.NORMAL)
     def test_form_modal_go_back_after_submission(self, modals_page):
+        """После успешной отправки возвращается по Back и проверяет видимость поля имени."""
         modals_page.open_form_modal()
 
         modals_page.type_name("Иван")
@@ -170,7 +172,7 @@ class TestModalsNegative:
     def test_simple_modal_does_not_close_on_escape(self, modals_page):
         modals_page.open_simple_modal()
         modals_page.close_modal_by_esc()
-        assert modals_page.is_simple_modal_displayed(), (
+        assert modals_page.is_simple_modal_still_open(timeout=1.5), (
             "Simple Modal закрылось по нажатию Escape, хотя esc_press=false"
         )
 
@@ -180,6 +182,6 @@ class TestModalsNegative:
     def test_modal_does_not_close_on_overlay_click(self, modals_page):
         modals_page.open_form_modal()
         modals_page.click_outside_modal()
-        assert modals_page.is_form_modal_displayed(), (
+        assert modals_page.is_form_modal_still_open(timeout=1.5), (
             "Модальное окно закрылось при клике на оверлей, хотя overlay_click отключен"
         )

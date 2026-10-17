@@ -4,7 +4,6 @@ import allure
 from selenium.common import TimeoutException, NoSuchElementException
 from selenium.webdriver import Keys, ActionChains
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 
 from config.settings import urls
@@ -12,11 +11,12 @@ from pages.base_page import BasePage
 
 
 class AdsPage(BasePage):
+    """Ожидание и закрытие рекламы, чтение содержимого страницы и переход по ссылке."""
+
     # Локаторы страницы
     PAGE_TITLE = (By.CSS_SELECTOR, "h1")
-    PAGE_TEXT = (By.CSS_SELECTOR, ".entry-content p")
 
-    # Элемент основной страницы, гарантированно видимый ДО появления рекламы
+    # Готовность страницы проверяется по заголовку, независимо от таймера рекламы.
     PAGE_READY_LOCATOR = PAGE_TITLE
 
     # Локаторы рекламного модального окна
@@ -27,7 +27,6 @@ class AdsPage(BasePage):
     AD_CLOSE_BUTTON = (By.CSS_SELECTOR, "#popmake-1272 button.pum-close")
     PAGE_LINK = (By.CSS_SELECTOR, ".entry-content a[href*='youtube.com']")
     BREADCRUMBS = (By.CSS_SELECTOR, ".breadcrumbs")
-    FOOTER_LINK = (By.CSS_SELECTOR, "footer a[href*='automatenow']")
     ENTRY_CONTENT = (By.CSS_SELECTOR, ".entry-content")
 
     def open_page(self):
@@ -40,8 +39,8 @@ class AdsPage(BasePage):
             return self.find_element(self.AD_CONTAINER, timeout=timeout)
 
     def is_ad_displayed(self) -> bool:
-        """Мгновенная проверка видимости окна без долгого ожидания."""
-        with allure.step("Мгновенная проверка видимости рекламы"):
+        """Проверяет видимость рекламы с ожиданием до 0,5 секунды."""
+        with allure.step("Проверка видимости рекламы (до 0,5 секунды)"):
             try:
                 element = self.find_element(self.AD_CONTAINER, timeout=0.5)
                 return element.is_displayed()
@@ -56,7 +55,7 @@ class AdsPage(BasePage):
                 return ""
 
     def get_ad_text(self, timeout: float = 2.0) -> str:
-        with allure.step("Получения текста рекламы"):
+        with allure.step("Получение текста рекламы"):
             try:
                 return self.find_element(self.AD_CONTENT, timeout=timeout).text.strip()
             except (TimeoutException, NoSuchElementException):
@@ -74,30 +73,22 @@ class AdsPage(BasePage):
                 return False
 
     def close_by_esc(self):
-        with allure.step("Попытка закрыть через клавишу ecs"):
+        with allure.step("Попытка закрыть рекламу клавишей Escape"):
             ActionChains(self.driver).send_keys(Keys.ESCAPE).perform()
 
     def click_outside_ad(self):
+        """Кликает по подложке в 20 пикселях от её левого края по центру высоты."""
         with allure.step("Клик по левому краю оверлея"):
             overlay = self.find_element(self.AD_OVERLAY)
-            # смещение влево, чтобы клик был не по центру
+            # ActionChains отсчитывает смещение от центра элемента.
             offset_x = -(overlay.size["width"] // 2) + 20
 
-            ActionChains(self.driver) \
-                .move_to_element_with_offset(overlay, offset_x, 0) \
-                .click() \
+            (
+                ActionChains(self.driver)
+                .move_to_element_with_offset(overlay, offset_x, 0)
+                .click()
                 .perform()
-
-    def is_page_link_clickable(self, timeout: float = 3.0) -> bool:
-        with allure.step("Проверка кликабельности ссылки статьи"):
-            return self.is_clickable(self.PAGE_LINK, timeout=timeout)
-
-    def get_close_button_attribute(self, attr_name: str) -> str:
-        with allure.step(f"Получение атрибута '{attr_name}' у кнопки закрытия рекламы"):
-            try:
-                return self.find_element(self.AD_CLOSE_BUTTON).get_attribute(attr_name) or ""
-            except (TimeoutException, NoSuchElementException):
-                return ""
+            )
 
     def close_ad_via_keyboard_enter(self):
         with allure.step("Закрытие рекламы нажатием Enter на сфокусированной кнопке закрытия"):
@@ -113,16 +104,12 @@ class AdsPage(BasePage):
         with allure.step("Попытка клика по ссылке на основной странице"):
             self.click(self.PAGE_LINK)
 
-    def get_page_tutorial_link_data(self) -> dict[str, str]:
-        with allure.step("Получение параметров ссылки на видеоурок"):
-            link_el = self.find_element(self.PAGE_LINK)
-            return {
-                "href": link_el.get_attribute("href") or "",
-                "target": link_el.get_attribute("target") or "",
-                "text": link_el.text.strip()
-            }
-
     def get_ad_auto_open_delay(self) -> int:
+        """Читает задержку auto_open из data-popmake в миллисекундах.
+
+        Возвращает 0, если настройка отсутствует или её значение некорректно.
+        Фактическое время появления окна этот метод не измеряет.
+        """
         with allure.step("Получение времени задержки таймера авто-открытия из data-popmake"):
             overlay = self.find_element(self.AD_OVERLAY)
             popmake_data = overlay.get_attribute("data-popmake") or "{}"
@@ -144,15 +131,6 @@ class AdsPage(BasePage):
         with allure.step("Получение полного текста статьи со страницы"):
             return self.find_element(self.ENTRY_CONTENT).text.strip()
 
-    def has_ad_dismiss_cookies(self) -> bool:
-        with allure.step("Проверка наличия кук, блокирующих показ рекламы"):
-            cookies = self.driver.get_cookies()
-            return any("pum" in c.get("name", "").lower() for c in cookies)
-
-    def try_click_footer_link(self):
-        with allure.step("Попытка клика по ссылке в футере"):
-            self.click(self.FOOTER_LINK)
-
     def open_tutorial_link(self) -> str:
         """Кликает по ссылке, переключается на открывшуюся вкладку и возвращает исходный window_handle."""
         with allure.step("Клик по ссылке на видеоурок и переход на новую вкладку"):
@@ -162,7 +140,11 @@ class AdsPage(BasePage):
             return original_window
 
     def is_tutorial_page_opened(self, timeout: float = 6.0) -> bool:
-        """Проверяет переход на YouTube или факт открытия вкладки целевого ролика."""
+        """Проверяет URL YouTube; при таймауте допускает наличие двух вкладок.
+
+        Запасная проверка сохраняется для сетей без доступа к YouTube и
+        не подтверждает загрузку сервиса: новая вкладка может быть пустой.
+        """
         with allure.step("Проверка открытия вкладки обучающего ролика"):
             try:
                 return bool(
@@ -171,7 +153,5 @@ class AdsPage(BasePage):
                     )
                 )
             except TimeoutException:
-                # Если внешний сервис замедлен/заблокирован сетью и завис на about:blank,
-                # подтверждаем, что вкладка физически открыта и зафиксирована браузером,
-                # так как Ютуб в РФ заблокирован
+                # Согласованный запасной вариант; проверяется только число вкладок.
                 return len(self.driver.window_handles) == 2

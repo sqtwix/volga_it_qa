@@ -82,6 +82,10 @@ class TestAdsPositive:
     @allure.title("Проверка фактического открытия ссылки на обучающий ролик в новой вкладке")
     @allure.severity(allure.severity_level.NORMAL)
     def test_tutorial_link_opens_successfully(self, ads_page):
+        """Проверяет открытие вкладки урока и возвращает фокус в исходную вкладку.
+
+        При недоступности YouTube применяется согласованная проверка числа вкладок.
+        """
         ads_page.wait_for_ad_to_appear()
         ads_page.close_ad()
         assert ads_page.is_ad_closed()

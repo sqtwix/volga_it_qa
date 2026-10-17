@@ -4,6 +4,8 @@ from selenium import webdriver
 from selenium.common import WebDriverException
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
 
+from config.settings import timeouts
+
 
 def pytest_addoption(parser):
     """Позволяет передавать аргументы в консоли: pytest --browser=firefox --headless"""
@@ -13,11 +15,9 @@ def pytest_addoption(parser):
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_makereport(item, call):
-    """Перехват отчетов для всех этапов жизненного цикла теста."""
+    """Прикладывает скриншот при падении этапа, если сессия браузера ещё доступна."""
     outcome = yield
     rep = outcome.get_result()
-
-    setattr(item, f"rep_{rep.when}", rep)
 
     if rep.failed:
         driver = getattr(item, "_driver", None) or item.funcargs.get("driver", None)
@@ -35,7 +35,13 @@ def pytest_runtest_makereport(item, call):
 
 @pytest.fixture(scope="function")
 def driver(request):
-    browser_name = request.config.getoption("--browser", default="firefox")
+    """Создаёт отдельный браузер для теста и закрывает его через finally.
+
+    Параметры --browser и --headless задаются при запуске pytest. Eager ждёт
+    готовности DOM; ожидания элементов и результатов действий выполняют страницы.
+    Таймаут навигации берётся из timeouts.PAGE_LOAD.
+    """
+    browser_name = request.config.getoption("--browser")
     is_headless = request.config.getoption("--headless")
 
     if browser_name == "firefox":
@@ -55,7 +61,7 @@ def driver(request):
 
     try:
         driver_instance.set_window_size(1920, 1080)
-        driver_instance.set_page_load_timeout(15)
+        driver_instance.set_page_load_timeout(timeouts.PAGE_LOAD)
 
         request.node._driver = driver_instance
 

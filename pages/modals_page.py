@@ -1,5 +1,5 @@
 import allure
-from selenium.common import TimeoutException, NoSuchElementException
+from selenium.common import TimeoutException, NoSuchElementException, ElementNotInteractableException
 from selenium.webdriver import Keys, ActionChains
 from selenium.webdriver.common.by import By
 
@@ -8,6 +8,8 @@ from pages.base_page import BasePage
 
 
 class ModalsPage(BasePage):
+    """Действия с Simple Modal, Form Modal и проверка их состояния."""
+
     # Локаторы из HTML
     SIMPLE_MODAL_BUTTON = (By.ID, "simpleModal")
     FORM_MODAL_BUTTON = (By.ID, "formModal")
@@ -20,13 +22,11 @@ class ModalsPage(BasePage):
 
     FORM_MODAL_OVERLAY = (By.ID, "pum-674")
     FORM_MODAL_CONTAINER = (By.ID, "popmake-674")
-    FORM_MODAL_TITLE = (By.ID, "pum_popup_title_674")
     FORM_MODAL_CLOSE_BUTTON = (By.CSS_SELECTOR, "#popmake-674 button.pum-close")
     FORM_NAME_INPUT = (By.ID, "g1051-name")
     FORM_EMAIL_INPUT = (By.ID, "g1051-email")
     FORM_MESSAGE_INPUT = (By.ID, "contact-form-comment-g1051-message")
     FORM_SUBMIT_BUTTON = (By.CSS_SELECTOR, "#popmake-674 button[type='submit']")
-    FORM_SUCCESS_HEADER = (By.CSS_SELECTOR, "#popmake-674 h4[id^='contact-form-success-header']")
     FORM_NAME_ERROR = (By.ID, "g1051-name-text-error")
     FORM_EMAIL_ERROR = (By.ID, "g1051-email-email-error")
     FORM_SUCCESS_SUMMARY = (By.CSS_SELECTOR, "#popmake-674 .jetpack_forms_contact-form-success-summary")
@@ -35,18 +35,12 @@ class ModalsPage(BasePage):
     FORM_BACK_LINK = (By.CSS_SELECTOR,
                       "#popmake-674 a.go-back-message, #popmake-674 a[data-wp-on--click='actions.goBack']")
 
-    # Страница готова, когда кнопка вызова модального окна отрисована и доступна
+    # Первичный признак загрузки страницы — видимая кнопка Simple Modal.
     PAGE_READY_LOCATOR = SIMPLE_MODAL_BUTTON
 
     def open_page(self):
         with allure.step("Открытие страницы модальных окон"):
             self.open(urls.MODAL_URL)
-
-    def clear_input(self, element):
-        with allure.step("Очистка поля ввода"):
-            input_element = element
-            input_element.send_keys(Keys.CONTROL + "a")
-            input_element.send_keys(Keys.BACKSPACE)
 
     # Методы взаимодействия с Simple Modal
 
@@ -109,10 +103,6 @@ class ModalsPage(BasePage):
             except (TimeoutException, NoSuchElementException):
                 return False
 
-    def get_form_modal_title(self) -> str:
-        with allure.step("Получение заголовка Form Modal"):
-            return self.get_text(self.FORM_MODAL_TITLE)
-
     def type_name(self, name: str):
         with allure.step("Заполнение формы имени"):
             input_element = self.find_element(self.FORM_NAME_INPUT)
@@ -135,17 +125,35 @@ class ModalsPage(BasePage):
             input_element.send_keys(Keys.TAB)
 
     def submit_form(self):
-        with allure.step("Нажатие кнопки Submit внутри модального окна"):
-            self.click(self.FORM_SUBMIT_BUTTON)
+        """Нажимает Submit; только в Firefox допускает явный JS-обход ошибки взаимодействия.
 
-    def get_form_success_message(self, timeout: float | None = None) -> str:
-        with allure.step("Получение сообщения об успешной отправке формы"):
+        Применение обхода записывается отдельным шагом Allure. Ошибки других
+        браузеров и исключения, отличные от ElementNotInteractableException,
+        передаются вызывающему тесту.
+        """
+        with allure.step("Нажатие кнопки Submit внутри модального окна"):
             try:
-                return self.find_element(self.FORM_SUCCESS_HEADER, timeout=timeout).text
-            except (TimeoutException, NoSuchElementException):
-                return ""
+                self.click(self.FORM_SUBMIT_BUTTON)
+            except ElementNotInteractableException:
+                if self.driver.capabilities.get("browserName", "").lower() != "firefox":
+                    raise
+                with allure.step("Обход ошибки прокрутки Submit в Firefox: JavaScript-клик"):
+                    self.click_via_javascript(self.FORM_SUBMIT_BUTTON)
+
+    def is_simple_modal_still_open(self, timeout: float = 1.5) -> bool:
+        with allure.step(f"Simple Modal остаётся видимым в течение {timeout}с"):
+            return self.remains_visible(self.SIMPLE_MODAL_CONTAINER, timeout)
+
+    def is_form_modal_still_open(self, timeout: float = 1.5) -> bool:
+        with allure.step(f"Form Modal остаётся видимым в течение {timeout}с"):
+            return self.remains_visible(self.FORM_MODAL_CONTAINER, timeout)
 
     def get_form_submission_details(self, timeout: float | None = None) -> str:
+        """Возвращает текст подтверждения и сводки, либо пустую строку при их отсутствии.
+
+        Сначала ожидает сводку, затем читает общий контейнер подтверждения.
+        Если сводка не найдена, ещё 2 секунды ожидает только общий контейнер.
+        """
         with allure.step("Получение полного текста сводки об отправке формы"):
             try:
                 self.find_element(self.FORM_SUCCESS_SUMMARY, timeout=timeout)
@@ -177,15 +185,18 @@ class ModalsPage(BasePage):
             self.click(self.FORM_BACK_LINK)
 
     def click_outside_modal(self):
+        """Кликает по подложке в 20 пикселях от её левого края по центру высоты."""
         with allure.step("Кликнуть по фоновому оверлею за пределами окна"):
             overlay = self.find_element(self.FORM_MODAL_OVERLAY)
-            # смещение влево, чтобы клик был не по центру
+            # ActionChains отсчитывает смещение от центра элемента.
             offset_x = -(overlay.size["width"] // 2) + 20
 
-            ActionChains(self.driver) \
-                .move_to_element_with_offset(overlay, offset_x, 0) \
-                .click() \
+            (
+                ActionChains(self.driver)
+                .move_to_element_with_offset(overlay, offset_x, 0)
+                .click()
                 .perform()
+            )
 
     def is_form_inputs_visible(self) -> bool:
         with allure.step("Проверить отображение полей ввода формы"):

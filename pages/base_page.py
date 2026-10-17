@@ -1,5 +1,6 @@
 import allure
-from selenium.common import TimeoutException, WebDriverException, ElementNotInteractableException
+from selenium.common import TimeoutException
+from selenium.webdriver import Keys
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as EC
@@ -9,6 +10,8 @@ from config.settings import timeouts
 
 
 class BasePage:
+    """Общие ожидания и действия Selenium, используемые классами страниц."""
+
     PAGE_READY_LOCATOR: tuple[str, str] | None = None
 
     def __init__(self, driver: WebDriver):
@@ -22,37 +25,29 @@ class BasePage:
             timeout: float | None = None,
     ):
         """
-        Открывает страницу по URL.
-        При таймауте отсекает зависшие внешние трекеры через window.stop(),
-        но строго валидирует появление ключевого элемента страницы.
-        Если элемент не появился или не задан — выбрасывает TimeoutException.
+        Открывает страницу и ожидает видимость её ключевого элемента.
+        При таймауте навигации завершает шаг ошибкой, сохраняя исходную причину.
+        timeout задаёт ожидание элемента; таймаут навигации настроен у драйвера.
         """
         check_locator = ready_locator or self.PAGE_READY_LOCATOR
-        wait = WebDriverWait(self.driver, timeout=timeout) if timeout is not None else self.wait
+        element_timeout = timeouts.DEFAULT if timeout is None else timeout
+        wait = WebDriverWait(self.driver, timeout=element_timeout)
         with allure.step(f"Переход по URL: {url}"):
-            nav_timed_out = False
             try:
                 self.driver.get(url)
             except TimeoutException as ex:
-                nav_timed_out = True
-                try:
-                    self.driver.execute_script("window.stop();")
-                except WebDriverException:
-                    pass
-                if not check_locator:
-                    raise TimeoutException(
-                        f"Навигация по URL '{url}' завершилась таймаутом. "
-                        f"Локатор готовности страницы не был передан."
-                    ) from ex
+                raise TimeoutException(
+                    f"Навигация по URL '{url}' завершилась таймаутом. "
+                    "Проверка готовности страницы не выполнялась."
+                ) from ex
             if check_locator:
                 with allure.step(f"Ожидание готовности страницы по элементу: {check_locator}"):
                     try:
                         wait.until(EC.visibility_of_element_located(check_locator))
                     except TimeoutException as exc:
-                        status = "после window.stop()" if nav_timed_out else "штатная загрузка"
                         raise TimeoutException(
-                            f"Страница '{url}' не готова к работе ({status}): "
-                            f"обязательный элемент {check_locator} не появился в DOM за {wait._timeout}с."
+                            f"Страница '{url}' не готова к работе: "
+                            f"обязательный элемент {check_locator} не стал видимым за {element_timeout}с."
                         ) from exc
 
     def find_element(self, locator: tuple[str, str], timeout: float | None = None) -> WebElement:
@@ -64,21 +59,25 @@ class BasePage:
         return wait.until(EC.presence_of_all_elements_located(locator))
 
     def click(self, locator: tuple[str, str], timeout: float | None = None):
-        """Кликает по элементу со скроллом во вьюпорт при необходимости."""
+        """Выполняет обычный клик; ошибки взаимодействия передаются вызывающему коду."""
         wait = WebDriverWait(self.driver, timeout=timeout) if timeout is not None else self.wait
-        element = wait.until(EC.element_to_be_clickable(locator))
-        try:
-            element.click()
-        except ElementNotInteractableException:
-            # Скроллим элемент в центр (решает проблему скролла внутри модальных окон)
-            self.driver.execute_script(
-                "arguments[0].scrollIntoView({block: 'center', inline: 'nearest'});", element
-            )
-            element.click()
+        wait.until(EC.element_to_be_clickable(locator)).click()
+
+    def click_via_javascript(self, locator: tuple[str, str]) -> None:
+        """Явно выполняет программный клик по видимому элементу."""
+        with allure.step(f"Программный JavaScript-клик по элементу: {locator}"):
+            element = self.find_element(locator)
+            self.driver.execute_script("arguments[0].click();", element)
+
+    def clear_input(self, element: WebElement) -> None:
+        """Очищает поле с клавиатуры с генерацией событий ввода."""
+        with allure.step("Очистка поля ввода"):
+            element.send_keys(Keys.CONTROL + "a")
+            element.send_keys(Keys.BACKSPACE)
 
     def type_text(self, locator: tuple[str, str], text: str):
         element = self.find_element(locator)
-        element.clear()
+        self.clear_input(element)
         element.send_keys(text)
 
     def get_text(self, locator: tuple[str, str]) -> str:
@@ -88,13 +87,15 @@ class BasePage:
         wait = WebDriverWait(self.driver, timeout=timeout) if timeout is not None else self.wait
         return wait.until(EC.invisibility_of_element_located(locator))
 
-    def is_clickable(self, locator: tuple[str, str], timeout: float | None = None) -> bool:
-        """Возвращает True, если элемент отображается, включен и доступен для клика."""
-        wait = WebDriverWait(self.driver, timeout=timeout) if timeout is not None else self.wait
+    def remains_visible(self, locator: tuple[str, str], timeout: float = 1.5) -> bool:
+        """Возвращает True, если опрос каждые 0,1 секунды не обнаружил исчезновения элемента."""
         try:
-            return bool(wait.until(EC.element_to_be_clickable(locator)))
-        except TimeoutException:
+            WebDriverWait(self.driver, timeout, poll_frequency=0.1).until_not(
+                EC.visibility_of_element_located(locator)
+            )
             return False
+        except TimeoutException:
+            return True
 
     def switch_to_new_window(self, original_window: str, timeout: float = 5.0):
         """Ожидает открытия новой вкладки и переключает фокус на неё."""
