@@ -94,7 +94,9 @@ class TestModalsPositive:
 
         modals_page.submit_form()
 
-        details = modals_page.get_form_submission_details()
+        details = modals_page.get_form_submission_details(
+            expected_values=(name, email, text),
+        )
         assert "Thank you for your response" in details, "Отсутствует подтверждающий заголовок"
         assert name in details, f"Имя '{name}' не отобразилось в сводке"
         if email:

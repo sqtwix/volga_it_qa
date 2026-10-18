@@ -1,5 +1,7 @@
+from time import sleep
+
 import allure
-from selenium.common import TimeoutException
+from selenium.common import TimeoutException, WebDriverException
 from selenium.webdriver import Keys
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
@@ -18,6 +20,32 @@ class BasePage:
         self.driver = driver
         self.wait = WebDriverWait(driver, timeout=timeouts.DEFAULT)
 
+    def _navigate_with_retry(self, url: str) -> None:
+        """Повторяет навигацию один раз при таймауте или явной ошибке соединения."""
+        for attempt in range(2):
+            try:
+                self.driver.get(url)
+                return
+            except WebDriverException as exc:
+                connection_errors = (
+                    "about:neterror?e=connectionFailure",
+                    "net::ERR_CONNECTION_RESET",
+                    "net::ERR_CONNECTION_REFUSED",
+                    "net::ERR_CONNECTION_TIMED_OUT",
+                )
+                retryable = isinstance(exc, TimeoutException) or any(
+                    marker in str(exc) for marker in connection_errors
+                )
+                if not retryable or attempt == 1:
+                    raise
+                with allure.step("Сбой навигации: один повтор открытия через 3 секунды"):
+                    allure.attach(
+                        str(exc),
+                        name="navigation_first_attempt_error",
+                        attachment_type=allure.attachment_type.TEXT,
+                    )
+                    sleep(3)
+
     def open(
             self,
             url: str,
@@ -26,7 +54,7 @@ class BasePage:
     ):
         """
         Открывает страницу и ожидает видимость её ключевого элемента.
-        При таймауте навигации завершает шаг ошибкой, сохраняя исходную причину.
+        Сетевой сбой навигации допускает один повтор; повторная ошибка не скрывается.
         timeout задаёт ожидание элемента; таймаут навигации настроен у драйвера.
         """
         check_locator = ready_locator or self.PAGE_READY_LOCATOR
@@ -34,7 +62,7 @@ class BasePage:
         wait = WebDriverWait(self.driver, timeout=element_timeout)
         with allure.step(f"Переход по URL: {url}"):
             try:
-                self.driver.get(url)
+                self._navigate_with_retry(url)
             except TimeoutException as ex:
                 raise TimeoutException(
                     f"Навигация по URL '{url}' завершилась таймаутом. "

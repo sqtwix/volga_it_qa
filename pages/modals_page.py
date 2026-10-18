@@ -1,7 +1,13 @@
 import allure
-from selenium.common import TimeoutException, NoSuchElementException, ElementNotInteractableException
+from selenium.common import (
+    TimeoutException, NoSuchElementException, ElementNotInteractableException,
+    StaleElementReferenceException,
+)
 from selenium.webdriver import Keys, ActionChains
 from selenium.webdriver.common.by import By
+from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 
 from config.settings import urls
 from pages.base_page import BasePage
@@ -118,11 +124,76 @@ class ModalsPage(BasePage):
             input_element.send_keys(Keys.TAB)
 
     def type_message(self, message: str):
+        """Вводит сообщение порциями, проверяя значение после ввода и потери фокуса."""
         with allure.step("Заполнение формы сообщения"):
             input_element = self.find_element(self.FORM_MESSAGE_INPUT)
             self.clear_input(input_element)
-            input_element.send_keys(message)
+
+            def wait_for_value(expected: str):
+                try:
+                    self.wait.until(
+                        lambda driver: driver.find_element(
+                            *self.FORM_MESSAGE_INPUT,
+                        ).get_property("value") == expected,
+                        message="Поле Message не содержит полный введённый текст",
+                    )
+                except TimeoutException as exc:
+                    actual = self.driver.find_element(*self.FORM_MESSAGE_INPUT).get_property("value")
+                    details = f"Ожидалось ({len(expected)}): {expected!r}\nПолучено: {actual!r}"
+                    allure.attach(details, name="message_input_mismatch", attachment_type=allure.attachment_type.TEXT)
+                    raise TimeoutException(f"Поле Message не сохранило введённый текст. {details}") from exc
+
+            wait_for_value("")
+            # Между порциями проверяем значение управляемого JavaScript поля.
+            for offset in range(0, len(message), 20):
+                input_element.send_keys(message[offset:offset + 20])
+                wait_for_value(message[:offset + 20])
             input_element.send_keys(Keys.TAB)
+            wait_for_value(message)
+
+    def _prepare_submit_button(self) -> WebElement:
+        """Прокручивает подложку, не меняя позицию Popup Maker, и ждёт свободную точку клика."""
+        self.wait.until(EC.element_to_be_clickable(self.FORM_SUBMIT_BUTTON))
+        previous_rect = None
+
+        def ready_to_click(_):
+            nonlocal previous_rect
+            try:
+                current = self.driver.find_element(*self.FORM_SUBMIT_BUTTON)
+                if not current.is_displayed() or not current.is_enabled():
+                    previous_rect = None
+                    return False
+                rect = self.driver.execute_script(
+                    """
+                    const el = arguments[0];
+                    const overlay = arguments[1];
+                    let r = el.getBoundingClientRect();
+                    if (r.top < 0 || r.bottom > window.innerHeight) {
+                        overlay.scrollTop += r.top + r.height / 2 - window.innerHeight / 2;
+                        r = el.getBoundingClientRect();
+                    }
+                    const x = r.left + r.width / 2;
+                    const y = r.top + r.height / 2;
+                    if (r.width <= 0 || r.height <= 0 || x < 0 || y < 0 ||
+                        x >= window.innerWidth || y >= window.innerHeight) return null;
+                    const top = document.elementFromPoint(x, y);
+                    if (!top || !(top === el || el.contains(top))) return null;
+                    return [r.left, r.top, r.width, r.height];
+                    """,
+                    current,
+                    self.driver.find_element(*self.FORM_MODAL_OVERLAY),
+                )
+                stable = rect is not None and rect == previous_rect
+                previous_rect = rect
+                return current if stable else False
+            except (NoSuchElementException, StaleElementReferenceException):
+                previous_rect = None
+                return False
+
+        return self.wait.until(
+            ready_to_click,
+            message="Кнопка Submit не заняла стабильное положение или перекрыта другим элементом",
+        )
 
     def submit_form(self):
         """Нажимает Submit; только в Firefox допускает явный JS-обход ошибки взаимодействия.
@@ -132,8 +203,9 @@ class ModalsPage(BasePage):
         передаются вызывающему тесту.
         """
         with allure.step("Нажатие кнопки Submit внутри модального окна"):
+            button = self._prepare_submit_button()
             try:
-                self.click(self.FORM_SUBMIT_BUTTON)
+                button.click()
             except ElementNotInteractableException:
                 if self.driver.capabilities.get("browserName", "").lower() != "firefox":
                     raise
@@ -148,21 +220,39 @@ class ModalsPage(BasePage):
         with allure.step(f"Form Modal остаётся видимым в течение {timeout}с"):
             return self.remains_visible(self.FORM_MODAL_CONTAINER, timeout)
 
-    def get_form_submission_details(self, timeout: float | None = None) -> str:
-        """Возвращает текст подтверждения и сводки, либо пустую строку при их отсутствии.
+    def get_form_submission_details(
+        self, timeout: float = 30.0, expected_values: tuple[str, ...] = (),
+    ) -> str:
+        """Ожидает подтверждение и полные ожидаемые значения в DOM сводки.
 
-        Сначала ожидает сводку, затем читает общий контейнер подтверждения.
-        Если сводка не найдена, ещё 2 секунды ожидает только общий контейнер.
+        textContent читает текст без визуального обрезания длинных строк.
+        Ожидаемые значения не сокращаются: неполная сводка завершится таймаутом.
         """
-        with allure.step("Получение полного текста сводки об отправке формы"):
+        def read_details(_):
+            """Читает уже отрисованную сводку; перерисовку повторяет внешний wait."""
             try:
-                self.find_element(self.FORM_SUCCESS_SUMMARY, timeout=timeout)
-                return self.find_element(self.FORM_SUCCESS_CONTAINER, timeout=timeout).text
-            except (TimeoutException, NoSuchElementException):
-                try:
-                    return self.find_element(self.FORM_SUCCESS_CONTAINER, timeout=2.0).text
-                except (TimeoutException, NoSuchElementException):
-                    return ""
+                summaries = self.driver.find_elements(*self.FORM_SUCCESS_SUMMARY)
+                summary_text = "\n".join(
+                    (row.get_property("textContent") or "").strip() for row in summaries
+                ).strip()
+                if not summary_text:
+                    return False
+                if not all(value in summary_text for value in expected_values if value):
+                    return False
+                container = self.driver.find_element(*self.FORM_SUCCESS_CONTAINER)
+                if container.is_displayed():
+                    details = (container.get_property("textContent") or "").strip()
+                    if "Thank you for your response" in details:
+                        return details
+            except (NoSuchElementException, StaleElementReferenceException):
+                pass
+            return False
+
+        with allure.step("Получение полного текста сводки об отправке формы"):
+            return WebDriverWait(self.driver, timeout).until(
+                read_details,
+                message="После отправки формы не появилась полная сводка с ожидаемыми данными",
+            )
 
     def is_name_error_displayed(self) -> bool:
         with allure.step("Проверка ошибки валидации поля Name"):
