@@ -39,11 +39,6 @@ class BasePage:
                 if not retryable or attempt == 1:
                     raise
                 with allure.step("Сбой навигации: один повтор открытия через 3 секунды"):
-                    allure.attach(
-                        str(exc),
-                        name="navigation_first_attempt_error",
-                        attachment_type=allure.attachment_type.TEXT,
-                    )
                     sleep(3)
 
     def open(

@@ -140,7 +140,6 @@ class ModalsPage(BasePage):
                 except TimeoutException as exc:
                     actual = self.driver.find_element(*self.FORM_MESSAGE_INPUT).get_property("value")
                     details = f"Ожидалось ({len(expected)}): {expected!r}\nПолучено: {actual!r}"
-                    allure.attach(details, name="message_input_mismatch", attachment_type=allure.attachment_type.TEXT)
                     raise TimeoutException(f"Поле Message не сохранило введённый текст. {details}") from exc
 
             wait_for_value("")

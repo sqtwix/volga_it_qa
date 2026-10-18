@@ -16,6 +16,11 @@ allure-results/
 allure-report/
 tmp/
 
+# Local Python environment and IDE settings
+.venv/
+.pytest_cache/
+.idea/
+
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
