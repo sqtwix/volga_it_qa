@@ -114,6 +114,7 @@ class TestAdsNegative:
     @allure.severity(allure.severity_level.CRITICAL)
     def test_page_link_click_intercepted_by_ad_overlay(self, ads_page):
         ads_page.wait_for_ad_to_appear()
+        ads_page.wait_for_ad_animation()
 
         with pytest.raises(ElementClickInterceptedException):
             ads_page.try_click_page_link()

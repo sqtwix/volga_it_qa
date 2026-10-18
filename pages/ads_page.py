@@ -1,7 +1,7 @@
 import json
 
 import allure
-from selenium.common import TimeoutException, NoSuchElementException
+from selenium.common import TimeoutException, NoSuchElementException, StaleElementReferenceException
 from selenium.webdriver import Keys, ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
@@ -103,6 +103,31 @@ class AdsPage(BasePage):
         """Пытается кликнуть по ссылке на странице (вызовет ошибку перехвата, если оверлей активен)."""
         with allure.step("Попытка клика по ссылке на основной странице"):
             self.click(self.PAGE_LINK)
+
+    def wait_for_ad_animation(self):
+        """Ожидает завершение анимации открытия до проверки блокировки фона."""
+        def animation_finished(driver):
+            try:
+                overlay = driver.find_element(*self.AD_OVERLAY)
+                container = driver.find_element(*self.AD_CONTAINER)
+                if not overlay.is_displayed() or not container.is_displayed():
+                    return False
+                return driver.execute_script(
+                    """
+                    const overlay = arguments[0], container = arguments[1];
+                    return getComputedStyle(overlay).opacity === '1' &&
+                        getComputedStyle(container).opacity === '1' &&
+                        overlay.getAnimations({subtree: true}).every(
+                            animation => animation.playState === 'finished' ||
+                                         animation.playState === 'idle'
+                        );
+                    """, overlay, container,
+                )
+            except (NoSuchElementException, StaleElementReferenceException):
+                return False
+
+        with allure.step("Ожидание завершения анимации открытия рекламы"):
+            self.wait.until(animation_finished, message="Анимация открытия рекламы не завершилась")
 
     def get_ad_auto_open_delay(self) -> int:
         """Читает задержку auto_open из data-popmake в миллисекундах.

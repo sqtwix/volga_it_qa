@@ -15,6 +15,13 @@ class CalendarPage(BasePage):
     DATE_INPUT = (By.CSS_SELECTOR, "input[name*='date'], #g1065-1-selectorenteradate")
     SUBMIT_BUTTON = (By.CSS_SELECTOR, "button[type='submit'].pushbutton-wide")
     SUCCESS_HEADER = (By.CSS_SELECTOR, "h4[id^='contact-form-success-header']")
+    SUBMITTED_DATE = (
+        By.XPATH,
+        "//div[contains(concat(' ', normalize-space(@class), ' '), "
+        "' jetpack_forms_contact-form-success-summary ')]"
+        "[.//div[@class='field-name' and normalize-space()='Select or enter a date:']]"
+        "//div[@class='field-value']",
+    )
     ERROR_CONTAINER = (By.ID, "g1065-1-selectorenteradate-text-error")
     ERROR_MESSAGE = (By.ID, "g1065-1-selectorenteradate-text-error-message")
     PICKER_CONTAINER = (By.CSS_SELECTOR, ".dp-cal")
@@ -138,6 +145,18 @@ class CalendarPage(BasePage):
             self.click(self.SUBMIT_BUTTON)
 
     # Методы взаимодействия с элементами получения результата
+
+    def get_submitted_date(self) -> str:
+        """Ожидает непустое значение даты в сводке отправки именно поля даты."""
+        with allure.step("Получение отправленной даты из сводки формы"):
+            def read_date(driver):
+                try:
+                    element = driver.find_element(*self.SUBMITTED_DATE)
+                    return element.text.strip() if element.is_displayed() else False
+                except (NoSuchElementException, StaleElementReferenceException):
+                    return False
+
+            return self.wait.until(read_date, message="В сводке отправки не появилась дата")
 
     def get_success_message(self, timeout: float = 10.0) -> str:
         with allure.step("Получение сообщения об успешной отправке формы"):

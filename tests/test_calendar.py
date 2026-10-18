@@ -106,7 +106,7 @@ class TestCalendarsPositive:
     @allure.title("Успешная отправка формы с валидной датой")
     @allure.severity(allure.severity_level.BLOCKER)
     def test_submit_form_with_valid_date(self, calendar_page):
-        """Проверяет подтверждение отправки формы с валидной датой."""
+        """Проверяет подтверждение отправки и точную дату в сводке формы."""
         target_date = "2026-11-05"
 
         calendar_page.type_date(target_date)
@@ -116,6 +116,10 @@ class TestCalendarsPositive:
 
         assert "Thank you for your response" in success_text, (
             f"Форма не отправилась или текст успеха не найден. Получено: '{success_text}'"
+        )
+        submitted_date = calendar_page.get_submitted_date()
+        assert submitted_date == target_date, (
+            f"В сводке ожидалась дата '{target_date}', получено: '{submitted_date}'"
         )
 
 
